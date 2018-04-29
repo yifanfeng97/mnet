@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="meshnet" autoUploadExternalChanges="true">
+    <serverData>
+      <paths name="meshnet">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/fengyifan/code/meshnet/meshnet" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="sftp://fengyifan@166.111.80.50:22/usr/bin/python3">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/fengyifan/code/meshnet/meshnet" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>
