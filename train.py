@@ -2,8 +2,9 @@
 import os
 import os.path as osp
 
-from models import MeshNetV0
+from models import MeshNetV0 as meshnet
 from datasets import data_pth
+from utils import config
 from utils import meter
 import train_helper
 
@@ -24,26 +25,18 @@ def train(train_loader, model, criterion, optimizer, epoch, cfg):
     # training mode
     model.train()
 
-    for i, (pcs, labels) in enumerate(train_loader):
+    for i, (meshes, labels) in enumerate(train_loader):
         batch_time.reset()
-        # bz x 12 x 3 x 224 x 224
+        # bz x n x 3
         labels = labels.long().view(-1)
-        pcs = Variable(pcs)
-        labels = Variable(labels)
 
         if cfg.cuda:
-            pcs = pcs.cuda()
+            meshes = meshes.cuda()
             labels = labels.cuda()
 
-        preds = model(pcs)  # bz x C x H x W
+        preds = model(meshes)  # bz x C x H x W
 
-        if cfg.have_aux:
-            preds, aux = preds
-            loss_main = criterion(preds, labels)
-            loss_aux = criterion(aux, labels)
-            softmax_loss = loss_main + 0.3 * loss_aux
-        else:
-            softmax_loss = criterion(preds, labels)
+        softmax_loss = criterion(preds, labels)
 
         loss = softmax_loss
 
@@ -77,23 +70,18 @@ def validate(val_loader, model, epoch, cfg):
     # testing mode
     model.eval()
 
-    for i, (pcs, labels) in enumerate(val_loader):
+    for i, (meshes, labels) in enumerate(val_loader):
         batch_time.reset()
-        # bz x 12 x 3 x 224 x 224
+        # bz x n x 3
         labels = labels.long().view(-1)
-        pcs = Variable(pcs)
-        labels = Variable(labels)
 
         # shift data to GPU
         if cfg.cuda:
-            pcs = pcs.cuda()
+            pcs = meshes.cuda()
             labels = labels.cuda()
 
         # forward, backward optimize
-        preds = model(pcs)
-
-        if cfg.have_aux:
-            preds, aux = preds
+        preds = model(meshes)
 
         prec.add(preds.data, labels.data)
 
@@ -111,10 +99,10 @@ def validate(val_loader, model, epoch, cfg):
 
 
 def main():
-    cfg = utils.config.config()
+    cfg = config()
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.gpu
-    train_dataset = data_pth.pc_data(cfg, state='train')
-    val_dataset = data_pth.pc_data(cfg, state='val')
+    train_dataset = data_pth.MeshData(state='train')
+    val_dataset = data_pth.MeshData(state='val')
 
     print('number of train samples is: ', len(train_dataset))
     print('number of val samples is: ', len(val_dataset))
@@ -122,13 +110,11 @@ def main():
     best_prec1 = 0
     prec1 = 0
     resume_epoch = 0
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg.batch_size,
-                                               shuffle=True, num_workers=cfg.workers)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=cfg.batch_size,
-                                              shuffle=True, num_workers=cfg.workers)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.workers)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.workers)
 
     # create model
-    model = point_with_attention.point_net_ours(cfg, num_classes=40)
+    model = meshnet(3, 40)
 
     if cfg.resume_train:
         print('loading pretrained model from {0}'.format(cfg.ckpt_model))
@@ -138,9 +124,7 @@ def main():
         model.load_state_dict(checkpoint['model_param_best'])
 
     # optimizer
-    optimizer = optim.SGD(model.parameters(), cfg.lr,
-                          momentum=cfg.momentum,
-                          weight_decay=cfg.weight_decay)
+    optimizer = optim.Adam(model.parameters(), cfg.lr, weight_decay=cfg.weight_decay)
 
     if cfg.resume_train and osp.exists(cfg.ckpt_optim):
         print('loading optim model from {0}'.format(cfg.ckpt_optim))
