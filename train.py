@@ -1,26 +1,16 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-import datasets
 import os
-import sys
 import os.path as osp
-sys.path.append('datasets')
-sys.path.append('models')
-sys.path.append('utils')
 
 from models import MeshNetV0
 from datasets import data_pth
 from utils import meter
-from models import model_helper
-import utils.config
-# from utils.generate_pc import draw_pc
 import train_helper
 
 import torch
 from torch import nn
 from torch import optim
-import torch.utils.data
-from torch.autograd import Variable
+from torch.utils import data
 
 
 def train(train_loader, model, criterion, optimizer, epoch, cfg):
