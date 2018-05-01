@@ -3,6 +3,7 @@ import os
 import os.path as osp
 
 from models import MeshNetV1 as meshnet
+from models import PointNetCls as pcnet
 from datasets import data_pth
 from utils import config
 from utils import meter
@@ -29,6 +30,7 @@ def train(train_loader, model, criterion, optimizer, epoch, cfg):
     for i, (meshes, adjs, labels) in enumerate(train_loader):
         batch_time.reset()
         # bz x n x 3
+        meshes = meshes.transpose(1, 2)
         labels = labels.long().view(-1)
 
         if cfg.cuda:
@@ -36,7 +38,7 @@ def train(train_loader, model, criterion, optimizer, epoch, cfg):
             adjs = adjs.cuda()
             labels = labels.cuda()
 
-        preds = model(meshes, adjs)  # bz x C x H x W
+        preds, _ = model(meshes)  # bz x C x H x W
 
         loss = criterion(preds, labels)
 
@@ -74,6 +76,7 @@ def validate(val_loader, model, epoch, cfg):
     for i, (meshes, adjs, labels) in enumerate(val_loader):
         batch_time.reset()
         # bz x n x 3
+        meshes = meshes.transpose(1, 2)
         labels = labels.long().view(-1)
 
         # shift data to GPU
@@ -83,7 +86,92 @@ def validate(val_loader, model, epoch, cfg):
             labels = labels.cuda()
 
         # forward, backward optimize
-        preds = model(meshes, adjs)
+        preds, _ = model(meshes)
+
+        prec.add(preds.cpu().data.numpy(), labels.item())
+
+        if i % cfg.print_freq == 0:
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'Batch Time {batch_time:.3f}\t'
+                  'Epoch Time {data_time:.3f}\t'
+                  'Prec@1 {top1:.3f}\t'.format(
+                epoch, i, len(val_loader), batch_time=batch_time.value(),
+                data_time=data_time.value(), top1=prec.value(1)))
+
+    print('mean class accuracy at epoch {0}: {1} '.format(epoch, prec.value(1)))
+
+    return prec.value(1)
+
+
+def train_pc(train_loader, model, criterion, optimizer, epoch, cfg):
+    """
+    train for one epoch on the training set
+    """
+    batch_time = meter.TimeMeter(True)
+    data_time = meter.TimeMeter(True)
+    losses = meter.AverageValueMeter()
+    prec = meter.ClassErrorMeter(topk=[1], accuracy=True)
+    # training mode
+    model.train()
+
+    for i, (meshes, labels) in enumerate(train_loader):
+        batch_time.reset()
+        # bz x n x 3
+        labels = labels.long().view(-1)
+        meshes = meshes.squeeze(3)
+
+        if cfg.cuda:
+            meshes = meshes.cuda()
+            labels = labels.cuda()
+
+        preds, _ = model(meshes)  # bz x C x H x W
+
+        loss = criterion(preds, labels)
+
+        # print('pred: %d, gt: %d'%(torch.argmax(preds.cpu().data), labels.item()))
+        prec.add(preds.cpu().data.numpy(), labels.item())
+        losses.add(loss.item(), preds.size(0))  # batchsize
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if i % cfg.print_freq == 0:
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'Batch Time {batch_time:.3f}\t'
+                  'Epoch Time {data_time:.3f}\t'
+                  'Loss {loss:.4f} \t'
+                  'Prec@1 {top1:.3f}\t'.format(
+                epoch, i, len(train_loader), batch_time=batch_time.value(),
+                data_time=data_time.value(), loss=losses.value()[0], top1=prec.value(1)))
+
+    print('prec at epoch {0}: {1} '.format(epoch, prec.value(1)))
+
+
+def validate_pc(val_loader, model, epoch, cfg):
+    """
+    validation for one epoch on the val set
+    """
+    batch_time = meter.TimeMeter(True)
+    data_time = meter.TimeMeter(True)
+    prec = meter.ClassErrorMeter(topk=[1], accuracy=True)
+
+    # testing mode
+    model.eval()
+
+    for i, (meshes, labels) in enumerate(val_loader):
+        batch_time.reset()
+        # bz x n x 3
+        labels = labels.long().view(-1)
+        meshes = meshes.squeeze(3)
+
+        # shift data to GPU
+        if cfg.cuda:
+            meshes = meshes.cuda()
+            labels = labels.cuda()
+
+        # forward, backward optimize
+        preds, _ = model(meshes)
 
         prec.add(preds.cpu().data.numpy(), labels.item())
 
@@ -106,6 +194,8 @@ def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.gpu
     train_dataset = data_pth.MeshData(cfg, state='train')
     val_dataset = data_pth.MeshData(cfg, state='val')
+    # train_dataset = data_pth.PCData(cfg, state='train')
+    # val_dataset = data_pth.PCData(cfg, state='val')
 
     print('number of train samples is: ', len(train_dataset))
     print('number of val samples is: ', len(val_dataset))
@@ -117,7 +207,7 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.workers)
 
     # create model
-    model = meshnet(3, 40)
+    model = pcnet(3, 40)
     # print(model)
 
     if cfg.resume_train:
@@ -140,7 +230,7 @@ def main():
         optimizer.load_state_dict(optim_state['optim_state_best'])
 
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, 10, 0.1)
+        optimizer, 20, 0.1)
 
     criterion = nn.CrossEntropyLoss()
 
@@ -152,6 +242,8 @@ def main():
     for epoch in range(resume_epoch, cfg.max_epoch):
 
         lr_scheduler.step(epoch=epoch)
+        # train_pc(train_loader, model, criterion, optimizer, epoch, cfg)
+        # prec1 = validate_pc(val_loader, model, epoch, cfg)
         train(train_loader, model, criterion, optimizer, epoch, cfg)
         prec1 = validate(val_loader, model, epoch, cfg)
 

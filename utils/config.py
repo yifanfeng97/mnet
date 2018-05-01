@@ -4,6 +4,7 @@ import os
 import os.path as osp
 import configparser
 
+
 class config(object):
     def __init__(self, cfg_file='../config/config.cfg'):
         super(config, self).__init__()
@@ -12,6 +13,7 @@ class config(object):
 
         # default
         self.data_root = cfg.get('DEFAULT', 'data_root')
+        self.data_pc_root = cfg.get('DEFAULT', 'data_pc_root')
         self.data_mesh_root = cfg.get('DEFAULT', 'data_mesh_root')
         self.data_std_mesh_root = cfg.get('DEFAULT', 'data_std_mesh_root')
         self.data_simply_mesh_root = cfg.get('DEFAULT', 'data_simply_mesh_root')
@@ -40,7 +42,6 @@ class config(object):
         self.max_epoch = cfg.getint('TRAIN', 'max_epoch')
         self.n_neighbor = cfg.getint('TRAIN', 'n_neighbor')
         self.lr = cfg.getfloat('TRAIN', 'lr')
-        self.momentum = cfg.getfloat('TRAIN', 'momentum')
         self.weight_decay = cfg.getfloat('TRAIN', 'weight_decay')
         self.optimizer = cfg.get('TRAIN', 'optimizer')
         self.decay_step = cfg.getint('TRAIN', 'decay_step')
@@ -54,6 +55,7 @@ class config(object):
             os.mkdir(folder)
 
     def check_dirs(self):
+        self.check_dir(self.data_pc_root)
         self.check_dir(self.data_mesh_root)
         self.check_dir(self.data_std_mesh_root)
         self.check_dir(self.data_simply_mesh_root)

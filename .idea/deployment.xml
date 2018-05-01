@@ -2,6 +2,13 @@
 <project version="4">
   <component name="PublishConfigData" autoUpload="Always" serverName="meshnet" autoUploadExternalChanges="true">
     <serverData>
+      <paths name="fengyifan@166.111.83.62:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/fengyifan/code/meshnet/meshnet" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="meshnet">
         <serverdata>
           <mappings>

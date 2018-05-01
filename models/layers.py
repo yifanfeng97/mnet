@@ -1,8 +1,11 @@
 import math
 import torch
 
+import numpy as np
 from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
+from torch import nn
+from torch.nn import functional as F
 
 class SparseMM(torch.autograd.Function):
 
@@ -11,12 +14,12 @@ class SparseMM(torch.autograd.Function):
         self.sparse = sparse
 
     def forward(self, dense):
-        return torch.mm(self.sparse, dense)
+        return torch.matmul(self.sparse, dense)
 
     def backward(self, grad_output):
         grad_output = None
         if self.needs_input_grad[0]:
-            grad_output = torch.mm(self.sparse.t(), grad_output)
+            grad_output = torch.matmul(self.sparse.t(), grad_output)
         return grad_output
 
 
@@ -43,8 +46,9 @@ class MeshConvolution(Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input, adj):
-        support = torch.mm(input, self.weight)
-        output = SparseMM(adj)(support)
+        support = torch.matmul(input, self.weight)
+        # output = SparseMM(adj)(support)
+        output = torch.matmul(adj, support)
         if self.bias is not None:
             return output + self.bias
         else:
@@ -54,3 +58,4 @@ class MeshConvolution(Module):
         return self.__class__.__name__ + ' ( '\
                 + str(self.in_ft_num) + ' -> '\
                 + str(self.out_ft_num) + ')'
+

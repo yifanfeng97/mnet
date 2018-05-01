@@ -14,7 +14,7 @@ class MeshConv(nn.Module):
 
     def forward(self, ft, adj):
         x = self.mc(ft, adj)
-        x = F.relu(x, inplace=True)
+        x = F.relu(x)
         return x
 
 
@@ -36,10 +36,10 @@ class CombinationLayer(nn.Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input):
-        output = torch.mm(input, self.weight)
+        output = torch.matmul(input, self.weight)
         if self.bias is not None:
             output = output + self.bias
-        output = F.relu(output, inplace=True)
+        output = F.relu(output)
         return output
 
 
@@ -78,31 +78,31 @@ class MeshNetV0(nn.Module):
         # 320( 64 + 64 + 64 + 128) -> 128
         self.cb = CombinationLayer(320, 1024)
         # 1024 -> 512
-        self.fc1 = FCLayer(1024, 512)
+        self.fc1 = FCLayer(1024, 512, bn=False)
         # 512 -> 256
-        self.fc2 = FCLayer(512, 256)
+        self.fc2 = FCLayer(512, 256, bn=False)
         # 256 -> n
         self.fc3 = nn.Linear(256, nclass)
 
-    def forward(self, x):
+    def forward(self, x, adj):
         # 3 -> 64
-        x = self.mc1(x)
+        x = self.mc1(x, adj)
         x1 = x
 
         # 64 -> 64
-        x = self.mc2(x)
+        x = self.mc2(x, adj)
         x2 = x
 
         # 64 -> 64
-        x = self.mc3(x)
+        x = self.mc3(x, adj)
         x3 = x
 
         # 64 -> 128
-        x = self.mc4(x)
+        x = self.mc4(x, adj)
         x4 = x
 
         # 320( 64 + 64 + 64 + 128) -> 128
-        x = torch.cat([x1, x2, x3, x4], dim=1)
+        x = torch.cat([x1, x2, x3, x4], dim=2)
         x = self.cb(x)
 
         x, _ = torch.max(x, dim=-2, keepdim=True)
@@ -117,4 +117,46 @@ class MeshNetV0(nn.Module):
         # 256 -> n
         x = self.fc3(x)
 
-        return x
+        return F.log_softmax(x, dim=1)
+        # return F.softmax(x, dim=1)
+
+
+class MeshNetV1(nn.Module):
+    def __init__(self, nfeat, nclass, dropout=0.5):
+        super(MeshNetV1, self).__init__()
+        self.dropout = dropout
+        # 3 -> 64
+        self.mc1 = MeshConv(nfeat, 64)
+        # 64 -> 128
+        self.mc2 = MeshConv(64, 128)
+        # 320( 64 + 64 + 64 + 128) -> 128
+        self.cb = CombinationLayer(192, 1024)
+        # 1024 -> 512
+        self.fc1 = FCLayer(1024, 256, bn=False)
+        # 256 -> n
+        self.fc2 = nn.Linear(256, nclass)
+
+    def forward(self, x, adj):
+        # 3 -> 64
+        x = self.mc1(x, adj)
+        x1 = x
+
+        # 64 -> 128
+        x = self.mc2(x, adj)
+        x2 = x
+
+        # 320( 64 + 64 + 64 + 128) -> 128
+        x = torch.cat([x1, x2], dim=2)
+        x = self.cb(x)
+
+        x, _ = torch.max(x, dim=-2, keepdim=True)
+        x = x.view(x.size(0), -1)
+
+        # 1024 -> 512
+        x = self.fc1(x)
+
+        # 512 -> 256
+        x = self.fc2(x)
+
+        return F.log_softmax(x, dim=1)
+        # return F.softmax(x, dim=1)

@@ -76,16 +76,6 @@ def generate(cfg):
         trans_std_file(shape, new_dir)
 
 
-def draw_pc(pc, show=True, save_dir=None):
-    ax = plt.figure().add_subplot(111, projection='3d')
-    ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], marker='.')
-    ax.grid(False)
-    ax.axis('off')
-    if show:
-        plt.show()
-    if save_dir is not None:
-        plt.savefig(save_dir)
-
 if __name__ == '__main__':
     # file_name = '/home/fengyifan/data/ModelNet40/dresser/test/dresser_0208.off'
     # des_name = '/home/fengyifan/data/dresser_0208.off'
